@@ -1,0 +1,600 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Frame Exporter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one working column. Paste code, preview beside it on wide screens, export strip below. */
+:root{
+  --bg:#f3f4f7; --panel:#ffffff; --ink:#15171e; --muted:#5c6170; --line:#d9dce4;
+  --accent:#2d4bd6; --accent-ink:#ffffff; --code:#eceef3; --bad:#b42318; --good:#14733f;
+  --display:"Space Grotesk",system-ui,sans-serif; --body:"Inter",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1016; --panel:#171a22; --ink:#eceef5; --muted:#9aa1b2; --line:#2a2f3b;
+  --accent:#8196ff; --accent-ink:#0e1016; --code:#10131a; --bad:#ff8a7a; --good:#5fd68f; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#0e1016; --panel:#171a22; --ink:#eceef5; --muted:#9aa1b2; --line:#2a2f3b;
+  --accent:#8196ff; --accent-ink:#0e1016; --code:#10131a; --bad:#ff8a7a; --good:#5fd68f; color-scheme:dark; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body);
+  padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:980px;margin:0 auto}
+h1{font:700 clamp(26px,5vw,36px)/1.1 var(--display);margin:0 0 6px;text-wrap:balance}
+.lead{color:var(--muted);margin:0 0 22px;max-width:62ch}
+.grid{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.col{min-width:0}
+.col.left{flex:1 1 400px}
+.col.right{flex:0 0 auto;width:min(100%,320px)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card + .card{margin-top:16px}
+h2{font:600 13px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+textarea{width:100%;height:230px;resize:vertical;background:var(--code);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;font:12.5px/1.5 var(--mono)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+label.opt{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:14px}
+select,input[type=text]{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 8px;font:inherit}
+input[type=text]{min-width:0;flex:1 1 140px}
+button{font:600 14px var(--body);border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,textarea:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.stage{position:relative;width:100%;background:#000;border-radius:8px;overflow:hidden}
+.stage iframe{position:absolute;left:0;top:0;width:1080px;height:1920px;border:0;transform-origin:0 0;background:#000}
+.scrub{display:flex;gap:10px;align-items:center;margin-top:10px}
+.scrub input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.mono{font:12.5px var(--mono);color:var(--muted)}
+.hint{color:var(--muted);font-size:13px;margin:10px 0 0}
+#status{margin:12px 0 0;min-height:1.5em;overflow-wrap:anywhere}
+#status.bad{color:var(--bad)} #status.good{color:var(--good)}
+progress{width:100%;height:10px;accent-color:var(--accent);margin-top:10px}
+#errBox{display:none;margin-top:12px;border-left:4px solid var(--bad);padding:4px 0 4px 12px}
+#errBox pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px var(--mono);margin:6px 0 8px}
+#result{display:none;margin-top:14px}
+#result video{width:100%;max-width:240px;border-radius:8px;display:block;margin-bottom:10px;background:#000}
+ol.how{margin:0;padding-left:20px;color:var(--muted)} ol.how li{margin:0 0 4px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+  <h1>Frame Exporter</h1>
+  <p class="lead">Turns an HTML animation that defines <code>window.renderAt(t)</code> and <code>window.DURATION</code> into a vertical MP4. Everything runs in this tab. Nothing is uploaded and it costs nothing to use.</p>
+
+  <div class="grid">
+    <div class="col left">
+      <section class="card">
+        <h2>1. Paste the animation code</h2>
+        <textarea id="code" spellcheck="false" aria-label="Animation HTML code"></textarea>
+        <div class="row">
+          <button class="primary" id="btnPreview">Preview</button>
+          <button id="btnSample">Load sample</button>
+          <label class="opt">Or open a file <input type="file" id="file" accept=".html,.htm,.txt,text/html,text/plain"></label>
+        </div>
+        <div id="errBox" role="alert">
+          <strong>The animation reported an error</strong>
+          <pre id="errText"></pre>
+          <button id="btnCopyFix">Copy fix message for the AI</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. Export</h2>
+        <div class="row" style="margin-top:0">
+          <label class="opt">Size
+            <select id="res">
+              <option value="1080" selected>Full HD (1080p)</option>
+              <option value="1440">QHD (1440p)</option>
+              <option value="2160">4K (2160p)</option>
+            </select></label>
+          <label class="opt">Frame rate
+            <select id="fps">
+              <option value="24">24 fps</option><option value="30" selected>30 fps</option><option value="45">45 fps</option>
+              <option value="60">60 fps</option><option value="75">75 fps</option><option value="90">90 fps</option>
+            </select></label>
+          <label class="opt">Quality
+            <select id="mbps"><option value="5">Standard</option><option value="8" selected>High</option><option value="12">Max</option></select></label>
+          <label class="opt"><input type="checkbox" id="labels" checked> Include text labels (slower)</label>
+          <label class="opt">Label method
+            <select id="lmode"><option value="auto" selected>Standard</option><option value="simple">Simple (steadier)</option></select></label>
+        </div>
+        <p class="hint" id="estimate"></p>
+        <div class="row">
+          <button class="primary" id="btnExport" disabled>Export MP4</button>
+          <button id="btnCancel" disabled>Cancel</button>
+        </div>
+        <progress id="prog" value="0" max="1" hidden></progress>
+        <p id="status" role="status" aria-live="polite"></p>
+        <div id="soundBox" style="margin:10px 0 14px">
+          <div class="row" style="margin:0">
+            <button id="btnSound" disabled>Create sound effects</button>
+          </div>
+          <p class="hint" id="soundHint">For iPad and other browsers that cannot add sound inside the MP4: create the sound track here, save it as a WAV, then put the MP4 and the WAV together in CapCut or iMovie.</p>
+          <div id="soundResult" style="display:none">
+            <audio id="aud" controls style="width:100%"></audio>
+            <div class="row" style="margin-top:0">
+              <input type="text" id="sname" value="sound-effects.wav" aria-label="Sound file name">
+              <button class="primary" id="btnSaveSound">Save WAV</button>
+            </div>
+          </div>
+        </div>
+        <div id="result">
+          <video id="vid" controls muted playsinline></video>
+          <div class="row" style="margin-top:0">
+            <input type="text" id="fname" value="short.mp4" aria-label="File name">
+            <button class="primary" id="btnSave">Save MP4</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Good to know</h2>
+        <ol class="how">
+          <li>Use Chrome or Edge on a computer for the best results. Keep this tab in front while exporting.</li>
+          <li>On Chrome or Edge on a computer the sound effects are built into the MP4. On iPad or iPhone, use Create sound effects and Save WAV, then combine the MP4 and WAV in an editing app. Add your voiceover there too.</li>
+          <li>Portrait animations export as 9:16 and landscape ones as 16:9. QHD and 4K are scaled up from the animation's own picture. Text labels are redrawn at the full size, so they stay sharp.</li>
+          <li>If your file has its own buttons or timeline around the picture, untick "Include text labels" so only the 3D picture is exported.</li>
+          <li>Heavy effects: <code>window.renderAt(t)</code> may be <code>async</code> and return a promise that finishes when the frame is fully drawn. A file may also define <code>window.renderAudio(duration, sampleRate)</code>, which returns an AudioBuffer (built with <code>OfflineAudioContext</code>) of sound effects that gets added to the MP4 as an audio track. A file may also define <code>window.prepare(progress)</code>, an async function that runs once before export, for example to pre-bake a physics or particle simulation. During export, frames are always requested in order from 0 upward.</li>
+          <li>The file must define <code>window.DURATION</code> and <code>window.renderAt(t)</code>. A page that runs its own player loop and hides these inside a function cannot be exported until they are exposed.</li>
+          <li>Labels are redrawn frame by frame, so a 70 second video with labels can take several minutes. Turn labels off for a fast test.</li>
+          <li>If the first label method fails, the exporter switches to a simpler one by itself. It draws text, solid boxes, borders and SVG lines, but not gradients or shadows on labels.</li>
+          <li>Not every phone or tablet can encode 4K or 90 fps. The page tells you if yours cannot.</li>
+        </ol>
+      </section>
+    </div>
+
+    <div class="col right">
+      <section class="card">
+        <h2>Preview</h2>
+        <div class="stage" id="stage"><iframe id="frame" title="Animation preview" sandbox="allow-scripts allow-same-origin"></iframe></div>
+        <div class="scrub">
+          <button id="btnPlay" disabled aria-label="Play preview">Play</button>
+          <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" disabled aria-label="Preview time">
+        </div>
+        <div class="mono" id="timeLbl">0.0 / 0.0 s</div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+  var S = { win:null, dur:0, playing:false, raf:0, blob:null, busy:false, cancel:false, lastErr:'', url:null, bw:1080, bh:1920, land:false };
+  var downloads = { save: function(o){ return new Promise(function(res){
+    var a = document.createElement('a'), u = URL.createObjectURL(o.data);
+    a.href = u; a.download = o.filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(u); }, 60000); res();
+  }); } };
+
+  function sampleHtml(){
+    return '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0f1630}canvas{display:block}' +
+      '#lab{position:absolute;left:80px;top:150px;color:#fff;font:700 84px/1.1 system-ui,sans-serif}' +
+      '#sub{position:absolute;left:80px;top:270px;color:#9db0ff;font:500 48px system-ui,sans-serif}</style></head><body>' +
+      '<canvas id="c" width="1080" height="1920"></canvas><div id="lab">Sample frame</div><div id="sub">t = 0.0 s</div>' +
+      '<' + 'script>window.DURATION=4;var c=document.getElementById("c"),x=c.getContext("2d"),sub=document.getElementById("sub");' +
+      'window.renderAt=function(t){var g=x.createLinearGradient(0,0,0,1920);g.addColorStop(0,"#17224d");g.addColorStop(1,"#0a0f24");x.fillStyle=g;x.fillRect(0,0,1080,1920);' +
+      'x.save();x.translate(540,1000);x.rotate(t*1.6);x.fillStyle="#7c93ff";x.fillRect(-220,-220,440,440);x.restore();' +
+      'x.beginPath();x.arc(540+Math.cos(t*3)*360,1000+Math.sin(t*3)*360,70,0,6.2832);x.fillStyle="#ffd166";x.fill();' +
+      'sub.textContent="t = "+t.toFixed(1)+" s";};window.renderAt(0);' + '<' + '/script></body></html>';
+  }
+
+  function hookScript(){
+    return '<' + 'script>window.onerror=function(m,s,l){parent.postMessage({__err:String(m)+(l?" (line "+l+")":"")},"*")};' +
+      'window.addEventListener("unhandledrejection",function(e){parent.postMessage({__err:String((e.reason&&e.reason.message)||e.reason)},"*")});' + '<' + '/script>';
+  }
+  function inject(src){
+    var h = hookScript();
+    if (/<head[^>]*>/i.test(src)) return src.replace(/<head[^>]*>/i, function(m){ return m + h; });
+    if (/<html[^>]*>/i.test(src)) return src.replace(/<html[^>]*>/i, function(m){ return m + '<head>' + h + '</head>'; });
+    return h + src;
+  }
+
+  function status(msg, kind){ var s=$('status'); s.textContent = msg; s.className = kind || ''; }
+  function showErr(msg){ S.lastErr = msg; $('errText').textContent = msg; $('errBox').style.display = 'block'; }
+  function clearErr(){ S.lastErr=''; $('errBox').style.display = 'none'; }
+  window.addEventListener('message', function(e){
+    if (e.source === $('frame').contentWindow && e.data && e.data.__err) { showErr(e.data.__err); status('The animation has an error. Send the message below to the AI.', 'bad'); }
+  });
+
+  function fit(){
+    var st = $('stage'), w = st.clientWidth, sc = w / S.bw, fr = $('frame');
+    fr.style.width = S.bw + 'px'; fr.style.height = S.bh + 'px';
+    st.style.height = Math.round(S.bh * sc) + 'px';
+    fr.style.transform = 'scale(' + sc + ')';
+  }
+  window.addEventListener('resize', fit);
+
+  function fmt(t){ return t.toFixed(1); }
+  function setTime(t){ $('timeLbl').textContent = fmt(t) + ' / ' + fmt(S.dur) + ' s'; }
+
+  function stop(){ S.playing = false; cancelAnimationFrame(S.raf); $('btnPlay').textContent = 'Play'; }
+  function draw(t){ try { S.win.renderAt(t); } catch(e){ showErr(String(e && e.message || e)); stop(); } }
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  /* Export size, bitrate and estimate */
+  function dims(){
+    var s = Number($('res').value), l = Math.round(s * 16 / 9);
+    return S.land ? { W: l, H: s } : { W: s, H: l };
+  }
+  function bitrate(){
+    var d = dims(), fps = Number($('fps').value), base = Number($('mbps').value) * 1e6;
+    var b = base * (d.W * d.H) / (1080 * 1920) * (fps / 30);
+    return Math.max(4e6, Math.min(100e6, Math.round(b)));
+  }
+  function updateEstimate(){
+    var d = dims(), fps = Number($('fps').value), b = bitrate();
+    var txt = d.W + 'x' + d.H + ' at ' + fps + ' fps, about ' + (b / 1e6).toFixed(0) + ' Mbps';
+    if (S.dur > 0) {
+      var mb = Math.max(1, Math.round(b * S.dur / 8 / 1e6));
+      txt += '. A ' + fmt(S.dur) + ' s video will be roughly ' + mb + ' MB.';
+      if (mb > 250) txt += ' That is large and may fail on a tablet or phone. Try Standard quality, 24 fps or a shorter video.';
+    }
+    $('estimate').textContent = txt;
+  }
+  ['res','fps','mbps'].forEach(function(id){ $(id).onchange = updateEstimate; });
+
+  async function loadPreview(){
+    stop(); clearErr(); status('Loading the animation…');
+    $('btnExport').disabled = true; $('btnPlay').disabled = true; $('scrub').disabled = true; $('result').style.display = 'none';
+    var f = $('frame'); S.win = null;
+    var loaded = new Promise(function(r){ f.onload = r; });
+    f.srcdoc = inject($('code').value);
+    await loaded;
+    var win = f.contentWindow, tries = 0;
+    while (typeof win.renderAt !== 'function' && tries < 200) { await wait(100); tries++; }
+    if (typeof win.renderAt !== 'function') {
+      if (!S.lastErr) showErr('window.renderAt is not defined after 20 seconds. The code may have crashed or be missing renderAt(t).');
+      status('Nothing to preview yet.', 'bad'); return;
+    }
+    var dur = Number(win.DURATION);
+    if (!(dur > 0)) { showErr('window.DURATION is missing or not a positive number of seconds.'); status('Nothing to preview yet.', 'bad'); return; }
+    var glc0 = win.document.querySelector('canvas');
+    S.land = !!(glc0 && glc0.width > glc0.height); S.bw = S.land ? 1920 : 1080; S.bh = S.land ? 1080 : 1920;
+    S.win = win; S.dur = dur; fit(); updateEstimate();
+    var sc = $('scrub'); sc.max = String(dur); sc.value = '0';
+    draw(0); setTime(0);
+    $('btnExport').disabled = false; $('btnPlay').disabled = false; sc.disabled = false;
+    $('btnSound').disabled = typeof win.renderAudio !== 'function'; $('soundResult').style.display = 'none';
+    $('soundHint').textContent = typeof win.renderAudio === 'function' ? 'For iPad and other browsers that cannot add sound inside the MP4: create the sound track here, save it as a WAV, then put the MP4 and the WAV together in CapCut or iMovie.' : 'This animation has no sound effects (no renderAudio function).';
+    status('Ready. ' + fmt(dur) + ' seconds. Drag the slider to check frames, then export.', 'good');
+  }
+
+  $('btnPreview').onclick = loadPreview;
+  $('btnSample').onclick = function(){ $('code').value = sampleHtml(); loadPreview(); };
+  $('file').onchange = function(){
+    var f = this.files && this.files[0]; if (!f) return;
+    var r = new FileReader();
+    r.onload = function(){ $('code').value = String(r.result); loadPreview(); };
+    r.onerror = function(){ status('Could not read that file.', 'bad'); };
+    r.readAsText(f);
+    this.value = '';
+  };
+  $('scrub').oninput = function(){ if (!S.win) return; stop(); var t = Number(this.value); draw(t); setTime(t); };
+  $('btnPlay').onclick = function(){
+    if (!S.win) return;
+    if (S.playing) { stop(); return; }
+    S.playing = true; $('btnPlay').textContent = 'Pause';
+    var t0 = performance.now() - Number($('scrub').value) * 1000;
+    (function tick(now){
+      if (!S.playing) return;
+      var t = (now - t0) / 1000;
+      if (t >= S.dur) { t = 0; t0 = now; }
+      draw(t); $('scrub').value = String(t); setTime(t);
+      S.raf = requestAnimationFrame(tick);
+    })(performance.now());
+  };
+
+  function copyText(txt, btn){
+    var old = btn.textContent;
+    function done(m){ btn.textContent = m; setTimeout(function(){ btn.textContent = old; }, 2000); }
+    function fb(){ var ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); var ok=false; try{ok=document.execCommand('copy');}catch(_){} document.body.removeChild(ta); done(ok?'Copied':'Copy failed'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ done('Copied'); }, fb); else fb();
+  }
+  $('btnCopyFix').onclick = function(){
+    copyText('The page crashes with this error and nothing is drawn: "' + S.lastErr + '". Fix it, check the whole script for other mistakes, and return the complete single HTML file again. Output only the code.', this);
+  };
+
+  function setBusy(b){
+    S.busy = b; $('btnExport').disabled = b || !S.win; $('btnCancel').disabled = !b;
+    $('btnPreview').disabled = b; $('btnSample').disabled = b; $('scrub').disabled = b || !S.win; $('btnPlay').disabled = b || !S.win;
+    $('btnSound').disabled = b || !S.win || typeof S.win.renderAudio !== 'function';
+    ['res','fps','mbps','labels','lmode'].forEach(function(id){ $(id).disabled = b; });
+  }
+
+  /* ---------- Label drawing ---------- */
+  function transparentColor(c){ return !c || c === 'transparent' || /^rgba\(\s*[\d.]+,\s*[\d.]+,\s*[\d.]+,\s*0\s*\)$/.test(c); }
+  function cumOpacity(win, el){
+    var o = 1;
+    for (var p = el; p; p = p.parentElement) { o *= parseFloat(win.getComputedStyle(p).opacity); if (!(o > 0)) return 0; }
+    return o;
+  }
+  var svgCache = {};
+  function loadSvg(url){
+    if (svgCache[url]) return Promise.resolve(svgCache[url]);
+    return new Promise(function(res, rej){
+      var img = new Image(); img.onload = function(){ var k = Object.keys(svgCache); if (k.length > 30) delete svgCache[k[0]]; svgCache[url] = img; res(img); }; img.onerror = rej; img.src = url;
+    });
+  }
+  /* Simple renderer: boxes, borders, words and SVG. Used when html2canvas fails. */
+  async function drawCustom(win, doc, ctx, sc){
+    ctx.save(); ctx.scale(sc, sc);
+    var els = doc.body.querySelectorAll('*'), rg = doc.createRange(), glc = doc.querySelector('canvas');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i], tag = el.tagName.toLowerCase();
+      if (tag === 'canvas' || tag === 'script' || tag === 'style' || tag === 'link' || tag === 'meta') continue;
+      if (el.ownerSVGElement) continue;
+      var cs = win.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      var op = cumOpacity(win, el); if (!(op > 0.001)) continue;
+      var r = el.getBoundingClientRect(); if (r.width <= 0 || r.height <= 0) continue;
+      ctx.globalAlpha = op;
+      if (tag === 'svg') {
+        try {
+          var clone = el.cloneNode(true);
+          clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          clone.setAttribute('width', String(r.width)); clone.setAttribute('height', String(r.height));
+          var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+          ctx.drawImage(await loadSvg(url), r.left, r.top, r.width, r.height);
+        } catch(_){}
+        continue;
+      }
+      var rad = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2);
+      function path(){ ctx.beginPath(); if (rad > 0 && ctx.roundRect) ctx.roundRect(r.left, r.top, r.width, r.height, rad); else ctx.rect(r.left, r.top, r.width, r.height); }
+      if (!transparentColor(cs.backgroundColor) && !(glc && el.contains(glc))) { path(); ctx.fillStyle = cs.backgroundColor; ctx.fill(); }
+      var bw = parseFloat(cs.borderTopWidth) || 0;
+      if (bw > 0 && cs.borderTopStyle !== 'none' && !transparentColor(cs.borderTopColor)) {
+        ctx.lineWidth = bw; ctx.strokeStyle = cs.borderTopColor;
+        ctx.beginPath(); if (rad > 0 && ctx.roundRect) ctx.roundRect(r.left + bw / 2, r.top + bw / 2, r.width - bw, r.height - bw, rad); else ctx.rect(r.left + bw / 2, r.top + bw / 2, r.width - bw, r.height - bw);
+        ctx.stroke();
+      }
+      var kids = el.childNodes, haveFont = false;
+      for (var k = 0; k < kids.length; k++) {
+        var node = kids[k]; if (node.nodeType !== 3 || !/\S/.test(node.nodeValue)) continue;
+        if (!haveFont) {
+          ctx.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+          ctx.fillStyle = cs.color; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+          try { ctx.letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing; } catch(_){}
+          haveFont = true;
+        }
+        var re = /\S+/g, m, txt = node.nodeValue;
+        while ((m = re.exec(txt))) {
+          rg.setStart(node, m.index); rg.setEnd(node, m.index + m[0].length);
+          var rr = rg.getBoundingClientRect(); if (!rr.width) continue;
+          var w = m[0];
+          if (cs.textTransform === 'uppercase') w = w.toUpperCase(); else if (cs.textTransform === 'lowercase') w = w.toLowerCase();
+          ctx.fillText(w, rr.left, rr.top + rr.height / 2);
+        }
+      }
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
+  async function doExport(){
+    if (!S.win) return;
+    if (!('VideoEncoder' in window) || !window.Mp4Muxer) { status('This browser cannot encode video here. Use Chrome or Edge on a computer.', 'bad'); return; }
+    stop(); clearErr(); S.cancel = false; $('result').style.display = 'none';
+    var win = S.win, doc = win.document, fps = Number($('fps').value), dur = S.dur;
+    var d = dims(), W = d.W, H = d.H, sc = W / S.bw;
+    var gl = doc.querySelector('canvas');
+    if (!gl) { status('No canvas found in the animation.', 'bad'); return; }
+    var total = Math.round(dur * fps);
+    var out = document.createElement('canvas'); out.width = W; out.height = H;
+    var ctx = out.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    var useLabels = $('labels').checked && doc.body.innerText.trim().length > 0;
+    var engine = (typeof window.html2canvas === 'function') ? 'h2c' : 'custom', stage = 'setup', note = '';
+
+    var cfg = null, codecs = ['avc1.640028','avc1.640032','avc1.640033','avc1.640034','avc1.64003C','avc1.64003D','avc1.64003E'];
+    for (var k = 0; k < codecs.length && !cfg; k++) {
+      var c = { codec: codecs[k], width: W, height: H, bitrate: bitrate(), framerate: fps };
+      try { var sup = await VideoEncoder.isConfigSupported(c); if (sup && sup.supported) cfg = c; } catch(_){}
+    }
+    if (!cfg) { status('This device cannot encode ' + W + 'x' + H + ' at ' + fps + ' fps. Try a smaller size or a lower frame rate.', 'bad'); return; }
+
+    /* Optional sound effects: the animation may define window.renderAudio(duration, sampleRate) returning an AudioBuffer (or a promise of one). */
+    var aBuf = null, aCfg = null, aEnc = null, aNote = '';
+    if (typeof win.renderAudio === 'function') {
+      stage = 'building the sound effects';
+      status('Building the sound effects…');
+      try {
+        if (!('AudioEncoder' in window)) throw new Error('this browser cannot encode audio, use Chrome or Edge on a computer');
+        var ab = await win.renderAudio(dur, 48000);
+        if (!ab || typeof ab.getChannelData !== 'function' || !ab.length) throw new Error('renderAudio did not return an AudioBuffer');
+        var cfgA = { codec: 'mp4a.40.2', sampleRate: ab.sampleRate, numberOfChannels: 2, bitrate: 128000 };
+        var supA = await AudioEncoder.isConfigSupported(cfgA);
+        if (!(supA && supA.supported)) throw new Error('AAC audio is not supported on this device');
+        aBuf = ab; aCfg = cfgA;
+      } catch (e) { aNote = ' Sound effects skipped: ' + (e && e.message || e) + '.'; }
+    }
+    var target = new Mp4Muxer.ArrayBufferTarget();
+    var muxOpts = { target: target, video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' };
+    if (aBuf) muxOpts.audio = { codec: 'aac', numberOfChannels: 2, sampleRate: aBuf.sampleRate };
+    var muxer = new Mp4Muxer.Muxer(muxOpts);
+    var encErr = null;
+    var enc = new VideoEncoder({ output: function(chunk, meta){ muxer.addVideoChunk(chunk, meta); }, error: function(e){ encErr = e; } });
+    enc.configure(cfg);
+
+    async function drawLabels(){
+      if (engine === 'h2c') {
+        try {
+          var ov = await html2canvas(doc.body, {
+            backgroundColor: null, width: S.bw, height: S.bh, windowWidth: S.bw, windowHeight: S.bh, scale: sc, logging: false,
+            ignoreElements: function(el){ return el.tagName === 'CANVAS'; },
+            onclone: function(dd){
+              dd.documentElement.style.setProperty('background', 'none', 'important');
+              dd.body.style.setProperty('background', 'none', 'important');
+              var cvs = dd.querySelectorAll('canvas');
+              for (var q = 0; q < cvs.length; q++) {
+                for (var p = cvs[q].parentElement; p; p = p.parentElement) p.style.setProperty('background', 'none', 'important');
+              }
+            }
+          });
+          if (!ov || !ov.width || !ov.height) throw new Error('empty label layer');
+          ctx.drawImage(ov, 0, 0, W, H);
+          return;
+        } catch (e) {
+          engine = 'custom'; note = ' Labels were drawn with the simple renderer.';
+        }
+      }
+      await drawCustom(win, doc, ctx, sc);
+    }
+
+    /* GPU sync and black-hole guard: some devices copy the WebGL canvas before the GPU has finished. */
+    var gctx = null, px = new Uint8Array(4), retried = 0, blackAfterLabels = 0;
+    if ($('lmode').value === 'simple') engine = 'custom';
+    try { gctx = gl.getContext('webgl2') || gl.getContext('webgl'); } catch(_){}
+    var probe = document.createElement('canvas'); probe.width = 12; probe.height = 20;
+    var pctx = probe.getContext('2d', { willReadFrequently: true });
+    async function grab(t){
+      var rv = win.renderAt(t);
+      if (rv && typeof rv.then === 'function') await rv;
+      if (gctx) { try { gctx.finish(); gctx.readPixels(0, 0, 1, 1, gctx.RGBA, gctx.UNSIGNED_BYTE, px); } catch(_){} }
+      ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(gl, 0, 0, W, H);
+    }
+    function blackShare(){
+      try {
+        pctx.drawImage(out, 0, 0, 12, 20);
+        var dd = pctx.getImageData(0, 0, 12, 20).data, n = 0;
+        for (var j = 0; j < dd.length; j += 4) if (dd[j] + dd[j + 1] + dd[j + 2] < 4) n++;
+        return n / 240;
+      } catch(_){ return 0; }
+    }
+
+    setBusy(true); var prog = $('prog'); prog.hidden = false; prog.max = total; prog.value = 0;
+    var started = performance.now();
+    try {
+      if (typeof win.prepare === 'function') {
+        stage = 'preparing the animation';
+        status('Preparing the animation (simulation or loading)…');
+        await win.prepare(function(p){ if (typeof p === 'number') { prog.max = 1; prog.value = Math.max(0, Math.min(1, p)); status('Preparing the animation… ' + Math.round(p * 100) + '%'); } });
+        prog.max = total; prog.value = 0; started = performance.now();
+      }
+      if (aBuf) {
+        stage = 'encoding the sound effects';
+        status('Encoding the sound effects…');
+        aEnc = new AudioEncoder({ output: function(chunk, meta){ muxer.addAudioChunk(chunk, meta); }, error: function(e){ encErr = e; } });
+        aEnc.configure(aCfg);
+        var sr = aBuf.sampleRate, c0 = aBuf.getChannelData(0), c1 = aBuf.numberOfChannels > 1 ? aBuf.getChannelData(1) : c0;
+        var nAud = Math.min(aBuf.length, Math.round(dur * sr));
+        for (var off = 0; off < nAud; off += sr) {
+          var len = Math.min(sr, nAud - off), pcm = new Float32Array(len * 2);
+          pcm.set(c0.subarray(off, off + len), 0); pcm.set(c1.subarray(off, off + len), len);
+          var ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: len, numberOfChannels: 2, timestamp: Math.round(off / sr * 1e6), data: pcm });
+          aEnc.encode(ad); ad.close();
+          while (aEnc.encodeQueueSize > 8) await wait(5);
+        }
+        await aEnc.flush(); aEnc.close(); aEnc = null;
+        if (encErr) throw encErr;
+      }
+      for (var i = 0; i < total; i++) {
+        if (S.cancel) break;
+        if (encErr) throw encErr;
+        stage = 'drawing the animation';
+        for (var tryN = 0; tryN < 4; tryN++) {
+          stage = 'drawing the animation';
+          await grab(i / fps);
+          if (blackShare() >= 0.08 && tryN < 3) { retried++; await wait(40); continue; }
+          if (useLabels) {
+            stage = 'drawing the labels';
+            await drawLabels();
+            if (blackShare() >= 0.08 && tryN < 3) {
+              retried++; blackAfterLabels++;
+              if (tryN >= 1 && engine === 'h2c') { engine = 'custom'; note = ' Labels switched to the simple renderer because the standard one blanked some frames.'; }
+              await wait(40); continue;
+            }
+          }
+          break;
+        }
+        stage = 'encoding';
+        var frame = new VideoFrame(out, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        enc.encode(frame, { keyFrame: i % (fps * 2) === 0 });
+        frame.close();
+        while (enc.encodeQueueSize > 8) await wait(5);
+        if (i % 5 === 0 || useLabels) {
+          prog.value = i + 1;
+          var el = (performance.now() - started) / 1000, left = el / (i + 1) * (total - i - 1);
+          status('Frame ' + (i + 1) + ' of ' + total + '. About ' + Math.max(1, Math.round(left)) + ' s left. Keep this tab open.');
+          if (!useLabels) await wait(0);
+        }
+      }
+      if (S.cancel) { try { enc.close(); } catch(_){} try { if (aEnc) aEnc.close(); } catch(_){} status('Export cancelled.'); return; }
+      stage = 'finishing the file';
+      await enc.flush(); enc.close(); muxer.finalize();
+      var blob = new Blob([target.buffer], { type: 'video/mp4' });
+      S.blob = blob;
+      if (S.url) { try { URL.revokeObjectURL(S.url); } catch(_){} }
+      S.url = URL.createObjectURL(blob);
+      var v = $('vid'); v.onerror = function(){ v.style.display = 'none'; }; v.style.display = 'block'; v.src = S.url;
+      $('result').style.display = 'block';
+      status('Done. ' + (blob.size / 1048576).toFixed(1) + ' MB, ' + fmt(dur) + ' s, ' + W + 'x' + H + ' at ' + fps + ' fps' + (aBuf ? ' with sound effects' : '') + '. Press Save MP4.' + note + aNote + (retried ? ' Re-drew ' + retried + ' frame' + (retried > 1 ? 's' : '') + ' that came out with a black hole' + (blackAfterLabels ? ' (' + blackAfterLabels + ' after the labels were drawn)' : '') + '.' : ''), 'good');
+    } catch (e) {
+      try { enc.close(); } catch(_){}
+      try { if (aEnc) aEnc.close(); } catch(_){}
+      try { console.error(e); } catch(_){}
+      status('Export failed while ' + stage + ': ' + ((e && e.name) ? e.name + ': ' : '') + (e && e.message || e), 'bad');
+    } finally {
+      prog.hidden = true; setBusy(false); draw(Number($('scrub').value));
+    }
+  }
+  $('btnExport').onclick = doExport;
+  $('btnCancel').onclick = function(){ S.cancel = true; };
+
+  $('btnSave').onclick = async function(){
+    if (!S.blob) return;
+    var name = ($('fname').value || 'short.mp4').trim(); if (!/\.mp4$/i.test(name)) name += '.mp4';
+    if (!downloads) { status('Saving is not available in this view. Open the artifact in claude.ai and try again.', 'bad'); return; }
+    try { await downloads.save({ filename: name, data: S.blob }); status('Saved ' + name + '.', 'good'); }
+    catch (e) {
+      var code = e && e.code;
+      if (code === 'declined') status('Save cancelled. Press Save MP4 to try again.');
+      else if (code === 'too_large') status('The file is too large for this view. Export again at a smaller size or a lower frame rate.', 'bad');
+      else status('Saving is not available in this view. Open the artifact in claude.ai and try again.', 'bad');
+    }
+  };
+
+  function wavBlob(b){
+    var n = b.length, sr = b.sampleRate, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
+    function w(o, str){ for (var i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); }
+    w(0,'RIFF'); v.setUint32(4, 36 + n * 4, true); w(8,'WAVEfmt ');
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,2,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr * 4,true); v.setUint16(32,4,true); v.setUint16(34,16,true);
+    w(36,'data'); v.setUint32(40, n * 4, true);
+    var L = b.getChannelData(0), R = b.numberOfChannels > 1 ? b.getChannelData(1) : L, o = 44;
+    for (var i = 0; i < n; i++) {
+      v.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 32767, true); o += 2;
+      v.setInt16(o, Math.max(-1, Math.min(1, R[i])) * 32767, true); o += 2;
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  $('btnSound').onclick = async function(){
+    if (!S.win || typeof S.win.renderAudio !== 'function') return;
+    var btn = this; btn.disabled = true; clearErr();
+    status('Creating the sound effects…');
+    try {
+      var ab = await S.win.renderAudio(S.dur, 44100);
+      if (!ab || typeof ab.getChannelData !== 'function' || !ab.length) throw new Error('renderAudio did not return an AudioBuffer');
+      if (S.sndUrl) { try { URL.revokeObjectURL(S.sndUrl); } catch(_){} }
+      S.sndBlob = wavBlob(ab); S.sndUrl = URL.createObjectURL(S.sndBlob);
+      $('aud').src = S.sndUrl; $('soundResult').style.display = 'block';
+      status('Sound ready, ' + fmt(S.dur) + ' s. Press play to listen, then Save WAV.', 'good');
+    } catch (e) { status('Could not create the sound: ' + (e && e.message || e), 'bad'); }
+    btn.disabled = false;
+  };
+  $('btnSaveSound').onclick = async function(){
+    if (!S.sndBlob) return;
+    var name = ($('sname').value || 'sound-effects.wav').trim(); if (!/\.wav$/i.test(name)) name += '.wav';
+    if (!downloads) { status('Saving is not available in this view. Open the artifact in claude.ai and try again.', 'bad'); return; }
+    try { await downloads.save({ filename: name, data: S.sndBlob }); status('Saved ' + name + '.', 'good'); }
+    catch (e) {
+      if (e && e.code === 'declined') status('Save cancelled. Press Save WAV to try again.');
+      else status('Saving is not available in this view. Open the artifact in claude.ai and try again.', 'bad');
+    }
+  };
+
+  $('code').value = sampleHtml();
+  fit(); updateEstimate();
+  loadPreview();
+})();
+</script>
+
+</body></html>
